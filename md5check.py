@@ -56,7 +56,7 @@ def find_md5sum_files(root: Path = Path('.'), pattern: str = 'md5sum*.txt') -> l
     return sorted(root.rglob(pattern))
 
 
-def process_md5_file(md5file: Path, verbose: bool = False) -> bool:
+def process_md5_file(md5file: Path, verbose: bool = False, show_hashes: bool = False) -> bool:
     cprint("================================================", 'cyan')
     cprint(f"Procesando: {md5file.resolve()}", 'cyan')
     cprint("================================================", 'cyan')
@@ -67,7 +67,7 @@ def process_md5_file(md5file: Path, verbose: bool = False) -> bool:
         lines = md5file.read_text(encoding='utf-8', errors='replace').splitlines()
     except Exception as e:
         cprint(f"No se pudo leer {md5file}: {e}", 'red')
-        return
+        return False
 
     total = correctos = incorrectos = no_encontrados = 0
 
@@ -92,7 +92,9 @@ def process_md5_file(md5file: Path, verbose: bool = False) -> bool:
             actual_hash = compute_md5(file_path)
             if actual_hash is None:
                 # Error al calcular hash, contarlo como incorrecto
-                if verbose:
+                if show_hashes:
+                    cprint(f"{expected_hash} {'(error)'.ljust(32)} [FAIL] {filename}", 'red')
+                elif verbose:
                     cprint(f"[FAIL] {filename}  Esperado: {expected_hash}  Actual: (error al calcular)", 'red')
                 else:
                     cprint(f"[FAIL] {filename}", 'red')
@@ -100,13 +102,17 @@ def process_md5_file(md5file: Path, verbose: bool = False) -> bool:
                     cprint(f"  Actual  : (error al calcular)", 'red')
                 incorrectos += 1
             elif actual_hash.lower() == expected_hash:
-                if verbose:
+                if show_hashes:
+                    cprint(f"{expected_hash} {actual_hash} [OK] {filename}", 'green')
+                elif verbose:
                     cprint(f"[OK]   {filename}  Esperado: {expected_hash}  Actual: {actual_hash}", 'green')
                 else:
                     cprint(f"[OK]   {filename}", 'green')
                 correctos += 1
             else:
-                if verbose:
+                if show_hashes:
+                    cprint(f"{expected_hash} {actual_hash} [FAIL] {filename}", 'red')
+                elif verbose:
                     cprint(f"[FAIL] {filename}  Esperado: {expected_hash}  Actual: {actual_hash}", 'red')
                 else:
                     cprint(f"[FAIL] {filename}", 'red')
@@ -114,7 +120,9 @@ def process_md5_file(md5file: Path, verbose: bool = False) -> bool:
                     cprint(f"  Actual  : {actual_hash}", 'red')
                 incorrectos += 1
         else:
-            if verbose:
+            if show_hashes:
+                cprint(f"{expected_hash} {'(notfound)'.ljust(32)} [NOT FOUND] {filename}", 'yellow')
+            elif verbose:
                 cprint(f"[NOT FOUND] {filename}  Esperado: {expected_hash}", 'yellow')
             else:
                 cprint(f"[NOT FOUND] {filename}", 'yellow')
@@ -140,6 +148,7 @@ def main() -> int:
     parser.add_argument('--pattern', '-p', default='md5sum*.txt', help="Patrón de búsqueda para archivos md5 (ej. 'md5sum*.txt')")
     parser.add_argument('--quiet', '-q', action='store_true', help='Silenciar mensajes informativos')
     parser.add_argument('--verbose', '-v', action='store_true', help='Imprimir hashes esperados y calculados en cada línea (salida más verbosa)')
+    parser.add_argument('--show-hashes', '-H', action='store_true', help='Mostrar hashes esperados y calculados en columnas al frente (formato compacto)')
     parser.add_argument('--fail-exit', action='store_true', help='Salir con código 2 si se detectan fallos o archivos no encontrados')
     args = parser.parse_args()
 
@@ -158,7 +167,7 @@ def main() -> int:
     had_issue = False
 
     for md5file in md5_files:
-        if process_md5_file(md5file, args.verbose):
+        if process_md5_file(md5file, args.verbose, args.show_hashes):
             had_issue = True
 
     if not args.quiet:
