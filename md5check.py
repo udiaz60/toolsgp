@@ -56,7 +56,7 @@ def find_md5sum_files(root: Path = Path('.'), pattern: str = 'md5sum*.txt') -> l
     return sorted(root.rglob(pattern))
 
 
-def process_md5_file(md5file: Path) -> bool:
+def process_md5_file(md5file: Path, verbose: bool = False) -> bool:
     cprint("================================================", 'cyan')
     cprint(f"Procesando: {md5file.resolve()}", 'cyan')
     cprint("================================================", 'cyan')
@@ -92,20 +92,32 @@ def process_md5_file(md5file: Path) -> bool:
             actual_hash = compute_md5(file_path)
             if actual_hash is None:
                 # Error al calcular hash, contarlo como incorrecto
-                cprint(f"[FAIL] {filename}", 'red')
-                cprint(f"  Esperado: {expected_hash}", 'red')
-                cprint(f"  Actual  : (error al calcular)", 'red')
+                if verbose:
+                    cprint(f"[FAIL] {filename}  Esperado: {expected_hash}  Actual: (error al calcular)", 'red')
+                else:
+                    cprint(f"[FAIL] {filename}", 'red')
+                    cprint(f"  Esperado: {expected_hash}", 'red')
+                    cprint(f"  Actual  : (error al calcular)", 'red')
                 incorrectos += 1
             elif actual_hash.lower() == expected_hash:
-                cprint(f"[OK]   {filename}", 'green')
+                if verbose:
+                    cprint(f"[OK]   {filename}  Esperado: {expected_hash}  Actual: {actual_hash}", 'green')
+                else:
+                    cprint(f"[OK]   {filename}", 'green')
                 correctos += 1
             else:
-                cprint(f"[FAIL] {filename}", 'red')
-                cprint(f"  Esperado: {expected_hash}", 'red')
-                cprint(f"  Actual  : {actual_hash}", 'red')
+                if verbose:
+                    cprint(f"[FAIL] {filename}  Esperado: {expected_hash}  Actual: {actual_hash}", 'red')
+                else:
+                    cprint(f"[FAIL] {filename}", 'red')
+                    cprint(f"  Esperado: {expected_hash}", 'red')
+                    cprint(f"  Actual  : {actual_hash}", 'red')
                 incorrectos += 1
         else:
-            cprint(f"[NOT FOUND] {filename}", 'yellow')
+            if verbose:
+                cprint(f"[NOT FOUND] {filename}  Esperado: {expected_hash}", 'yellow')
+            else:
+                cprint(f"[NOT FOUND] {filename}", 'yellow')
             no_encontrados += 1
 
     cprint("", None)
@@ -123,13 +135,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Verifica MD5 según archivos md5sum*.txt. Modo sólo-lectura: NO copia, NO elimina ni altera archivos."
     )
+    parser.add_argument('directory', nargs='?', default=None, help='Directorio a analizar (alternativa rápida a --root)')
     parser.add_argument('--root', '-r', default='.', help='Directorio raíz para buscar (por defecto: .)')
     parser.add_argument('--pattern', '-p', default='md5sum*.txt', help="Patrón de búsqueda para archivos md5 (ej. 'md5sum*.txt')")
     parser.add_argument('--quiet', '-q', action='store_true', help='Silenciar mensajes informativos')
+    parser.add_argument('--verbose', '-v', action='store_true', help='Imprimir hashes esperados y calculados en cada línea (salida más verbosa)')
     parser.add_argument('--fail-exit', action='store_true', help='Salir con código 2 si se detectan fallos o archivos no encontrados')
     args = parser.parse_args()
 
-    root = Path(args.root)
+    # Priorizar el argumento posicional si se suministra, sino usar --root
+    root = Path(args.directory if args.directory else args.root)
     md5_files = find_md5sum_files(root, args.pattern)
 
     if not md5_files:
@@ -143,7 +158,7 @@ def main() -> int:
     had_issue = False
 
     for md5file in md5_files:
-        if process_md5_file(md5file):
+        if process_md5_file(md5file, args.verbose):
             had_issue = True
 
     if not args.quiet:
